@@ -1,0 +1,168 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- 适应手机屏幕 -->
+    <meta
+      charset="utf-8"
+      name="viewport"
+      content="width=device-width,initial-scale=1"
+    />
+    <title>易班脚本</title>
+    <link
+      rel="shortcut icon"
+      type="image/png"
+      href="{% static 'favicon.ico' %}"
+    />
+  </head>
+
+  <script>
+    // 把账号密码填入输入框内
+    function set_account_password() {
+      if (
+        (account = getCookie("account")) &&
+        (password = getCookie("password"))
+      ) {
+        document.getElementById("account").style.color = "#000000";
+        document.getElementById("password").style.color = "#000000";
+        document.getElementById("account").value = account;
+        document.getElementById("password").value = password;
+      }
+    }
+
+    // 从 cookies 中获取键对应的值
+    function getCookie(cname) {
+      var name = cname + "=";
+      var ca = document.cookie.split(";");
+      for (var i = 0; i < ca.length; i++) {
+        var c = ca[i].trim();
+        if (c.indexOf(name) == 0) return c.substring(name.length, c.length);
+      }
+      return "";
+    }
+
+    // 执行脚本
+    async function execute_script() {
+      // 判断账号密码是否为空
+      if (
+        !document.getElementById("account").value ||
+        !document.getElementById("password").value
+      ) {
+        document.getElementById("info").innerHTML = "账号或密码为空";
+        return;
+      }
+
+      // 判断 cookies 中的账号和当前输入的账号是否相同
+      var new_account = 1;
+      if (getCookie("account") != document.getElementById("account").value) {
+        new_account = 0;
+      }
+
+      // 提示用户等待
+      document.getElementById("info").innerHTML = "正在执行脚本，预计花费2分钟";
+
+      // 向接口发送数据
+      var xmlhttp = new XMLHttpRequest();
+      xmlhttp.responseType = "json";
+      xmlhttp.onload = function () {
+        document.getElementById("info").innerHTML = xmlhttp.response.message;
+        if (xmlhttp.response.code == 200) {
+          document.getElementById("captcha").style.display = "none";
+          document.getElementById("captcha_input").style.display = "none";
+
+          document.getElementById("yb_info").style.display = "inline";
+          document.getElementById("wangxin").innerHTML =
+            xmlhttp.response.wangxin;
+          document.getElementById("jingyan").innerHTML =
+            xmlhttp.response.jingyan;
+        }
+        if (xmlhttp.response.code == "711") {
+          document.getElementById("captcha").style.display = "inline";
+          document.getElementById("captcha").src = "/captcha?key=" + new Date();
+          document.getElementById("captcha_input").style.display = "inline";
+          document.getElementById("global").style.textAlign = "center";
+        }
+      };
+      xmlhttp.open("POST", "/login", true);
+      xmlhttp.setRequestHeader(
+        "Content-type",
+        "application/x-www-form-urlencoded"
+      );
+      xmlhttp.send(
+        "account=" +
+          document.getElementById("account").value +
+          "&password=" +
+          document.getElementById("password").value +
+          "&captcha=" +
+          document.getElementById("captcha_input").value +
+          "&new_account=" +
+          new_account
+      );
+    }
+
+    // 刷新验证码
+    function refresh_captcha() {
+      document.getElementById("captcha").src = "/captcha?key=" + new Date();
+    }
+  </script>
+
+  <!-- 加载完成后自动填入账号密码 -->
+  <body onload="set_account_password()">
+    <div id="global" style="text-align: center;">
+      <font size="6" style="color: #666666;">易班脚本</font>
+      <hr />
+
+      <br />
+      <br />
+
+      <input
+        type="text"
+        id="account"
+        style="width: 180px; height: 25px;"
+        placeholder="请输入账号"
+      />
+      <p></p>
+      <input
+        type="password"
+        id="password"
+        placeholder="请输入密码"
+        style="width: 180px; height: 25px;"
+        οnkeyup="if(event.keyCode == 13) { execute_script() }"
+      />
+      <p></p>
+      <p id="info"></p>
+      <img id="captcha" style="display: none;" onclick="refresh_captcha()" />
+      <p></p>
+      <input
+        type="text"
+        id="captcha_input"
+        placeholder="请输入验证码"
+        style="display: none; width: 180px; height: 25px;"
+      />
+      <p></p>
+      <input
+        type="button"
+        style="width: 180px; height: 30px;"
+        value="执行脚本"
+        onclick="execute_script()"
+      />
+
+      <br />
+      <br />
+      <br />
+
+      <!-- 点击执行按钮之后才显示 -->
+      <div id="yb_info" style="display: none;">
+        执行脚本前的
+        <p></p>
+        网薪
+        <span id="wangxin"></span>
+        <p></p>
+        经验
+        <span id="jingyan"></span>
+        <p></p>
+      </div>
+    </div>
+  </body>
+</html>
