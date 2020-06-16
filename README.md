@@ -1,3 +1,5 @@
+![image](https://raw.githubusercontent.com/FH0/YB_Django/master/static/demo.jpg)
+
 ### 功能作用
 
 一键『发布、点赞博客文章』『发布动态』『发布、点赞、评论投票』『发布、评论话题』『上传、公开资料库文件』『发布易瞄瞄』『回答签到问题』
