@@ -9,95 +9,116 @@
       name="viewport"
       content="width=device-width,initial-scale=1"
     />
-    <title>易班脚本</title>
+    <title>YB_Django</title>
     <link
       rel="shortcut icon"
       type="image/png"
       href="{% static 'favicon.ico' %}"
     />
+    <style>
+      #login-btn {
+        width: 120px;
+        height: 30px;
+        background-color: #00a5ed;
+        border-style: none;
+        color: white;
+        font-weight: bold;
+        border-radius: 5px;
+      }
+      #login-btn:hover {
+        background-color: #2486c7;
+        cursor: pointer;
+      }
+      #get-wangxin-jingyan-btn {
+        width: 120px;
+        height: 30px;
+        background-color: #5cb85c;
+        border-style: none;
+        color: white;
+        font-weight: bold;
+        border-radius: 5px;
+      }
+      #get-wangxin-jingyan-btn:hover {
+        background-color: #449644;
+        cursor: pointer;
+      }
+      #execute-script-btn {
+        width: 80px;
+        height: 30px;
+        background-color: #e33f33;
+        border-style: none;
+        color: white;
+        font-weight: bold;
+        border-radius: 5px;
+      }
+      #execute-script-btn:hover {
+        background-color: #c0261b;
+        cursor: pointer;
+      }
+    </style>
   </head>
 
   <script>
-    // 把账号密码填入输入框内
-    function set_account_password() {
-      if (
-        (account = getCookie("account")) &&
-        (password = getCookie("password"))
-      ) {
-        document.getElementById("account").style.color = "#000000";
-        document.getElementById("password").style.color = "#000000";
-        document.getElementById("account").value = account;
-        document.getElementById("password").value = password;
-      }
-    }
-
-    // 从 cookies 中获取键对应的值
-    function getCookie(cname) {
-      var name = cname + "=";
-      var ca = document.cookie.split(";");
-      for (var i = 0; i < ca.length; i++) {
-        var c = ca[i].trim();
-        if (c.indexOf(name) == 0) return c.substring(name.length, c.length);
-      }
-      return "";
-    }
-
-    // 执行脚本
-    async function execute_script() {
+    // 页面加载完成后
+    function after_onload() {
       // 判断账号密码是否为空
       if (
-        !document.getElementById("account").value ||
-        !document.getElementById("password").value
+        !(account = localStorage.getItem("account")) ||
+        !(password = localStorage.getItem("password"))
       ) {
-        document.getElementById("info").innerHTML = "账号或密码为空";
         return;
       }
 
-      // 判断 cookies 中的账号和当前输入的账号是否相同
-      var new_account = 1;
-      if (getCookie("account") != document.getElementById("account").value) {
-        new_account = 0;
-      }
+      // 把账号密码填入输入框内
+      document.getElementById("account").value = account;
+      document.getElementById("password").value = password;
 
-      // 提示用户等待
-      document.getElementById("info").innerHTML = "正在执行脚本，预计花费2分钟";
+      // 提示
+      document.getElementById("login-info").innerHTML = "正在查询登录状态";
+
+      // 登录按钮不可用
+      document.getElementById("login-btn").disabled = true;
+
+      // 查询登录状态
+      fetch("/is_login").then((res) =>
+        res.json().then((json) => {
+          // 登录按钮取消不可用
+          document.getElementById("login-btn").disabled = false;
+
+          if (json.isLogin) {
+            // 提示
+            document.getElementById("login-info").innerHTML =
+              "已登录，无需再次登录";
+
+            // 显示登录成功后应该显示的元素
+            document.getElementById("after-login").style.display = "inline";
+          } else {
+            // 提示
+            document.getElementById("login-info").innerHTML =
+              "未登录，请先登录";
+          }
+        })
+      );
+    }
+
+    // 执行脚本
+    function rush_yb() {
+      // 按钮不可用
+      document.getElementById("login-btn").disabled = true;
+      document.getElementById("get-wangxin-jingyan-btn").disabled = true;
+      document.getElementById("execute-script-btn").disabled = true;
 
       // 向接口发送数据
-      var xmlhttp = new XMLHttpRequest();
-      xmlhttp.responseType = "json";
-      xmlhttp.onload = function () {
-        document.getElementById("info").innerHTML = xmlhttp.response.message;
-        if (xmlhttp.response.code == 200) {
-          document.getElementById("captcha").style.display = "none";
-          document.getElementById("captcha_input").style.display = "none";
+      fetch("/rush_yb").then((res) =>
+        res.text().then((text) => {
+          // 显示返回的信息
+          document.getElementById("execute-info").innerHTML = text;
 
-          document.getElementById("yb_info").style.display = "inline";
-          document.getElementById("wangxin").innerHTML =
-            xmlhttp.response.wangxin;
-          document.getElementById("jingyan").innerHTML =
-            xmlhttp.response.jingyan;
-        }
-        if (xmlhttp.response.code == "711") {
-          document.getElementById("captcha").style.display = "inline";
-          document.getElementById("captcha").src = "/captcha?key=" + new Date();
-          document.getElementById("captcha_input").style.display = "inline";
-          document.getElementById("global").style.textAlign = "center";
-        }
-      };
-      xmlhttp.open("POST", "/login", true);
-      xmlhttp.setRequestHeader(
-        "Content-type",
-        "application/x-www-form-urlencoded"
-      );
-      xmlhttp.send(
-        "account=" +
-          document.getElementById("account").value +
-          "&password=" +
-          document.getElementById("password").value +
-          "&captcha=" +
-          document.getElementById("captcha_input").value +
-          "&new_account=" +
-          new_account
+          // 按钮取消不可用
+          document.getElementById("login-btn").disabled = false;
+          document.getElementById("get-wangxin-jingyan-btn").disabled = false;
+          document.getElementById("execute-script-btn").disabled = false;
+        })
       );
     }
 
@@ -105,17 +126,131 @@
     function refresh_captcha() {
       document.getElementById("captcha").src = "/captcha?key=" + new Date();
     }
+
+    // 查询网薪和经验
+    function get_wangxin_jingyan() {
+      // 按钮不可用
+      document.getElementById("login-btn").disabled = true;
+      document.getElementById("get-wangxin-jingyan-btn").disabled = true;
+      document.getElementById("execute-script-btn").disabled = true;
+
+      // 向接口发送数据
+      fetch("/wangxin_jingyan").then((res) =>
+        res.text().then((text) => {
+          // 显示返回的信息
+          document.getElementById("execute-info").innerHTML = text;
+
+          // 按钮取消不可用
+          document.getElementById("login-btn").disabled = false;
+          document.getElementById("get-wangxin-jingyan-btn").disabled = false;
+          document.getElementById("execute-script-btn").disabled = false;
+        })
+      );
+    }
+
+    // 登录
+    function login() {
+      // 判断账号密码是否为空
+      if (
+        !document.getElementById("account").value ||
+        !document.getElementById("password").value
+      ) {
+        document.getElementById("login-info").innerHTML = "账号或密码为空";
+        return;
+      }
+
+      // 是否为新的账号
+      var new_account = 1;
+      if (
+        localStorage.getItem("account") !=
+        document.getElementById("account").value
+      ) {
+        new_account = 0;
+      }
+
+      // 保存账号密码到本地
+      localStorage.setItem("account", document.getElementById("account").value);
+      localStorage.setItem(
+        "password",
+        document.getElementById("password").value
+      );
+
+      // 登录按钮不可用
+      document.getElementById("login-btn").disabled = true;
+
+      // 隐藏未登录时不应该显示的元素
+      document.getElementById("after-login").style.display = "none";
+
+      // 隐藏验证码元素
+      document.getElementById("captcha").style.display = "none";
+      document.getElementById("captcha-input").style.display = "none";
+
+      // 向接口发送数据
+      fetch("/login", {
+        method: "POST",
+        body: JSON.stringify({
+          account: document.getElementById("account").value,
+          password: document.getElementById("password").value,
+          captcha: document.getElementById("captcha-input").value,
+          new_account: new_account,
+        }),
+      }).then((res) =>
+        res.json().then((json) => {
+          // 显示信息
+          if (json.code == 200) {
+            document.getElementById("login-info").innerHTML =
+              "已登录，无需再次登录";
+          } else {
+            document.getElementById("login-info").innerHTML = json.message;
+          }
+
+          // 登录按钮取消不可用
+          document.getElementById("login-btn").disabled = false;
+
+          // 显示登录成功后应该显示的元素
+          if (json.code == 200) {
+            document.getElementById("after-login").style.display = "inline";
+          }
+
+          // 显示验证码
+          if (json.code == "711") {
+            document.getElementById("captcha").style.display = "inline";
+            document.getElementById("captcha").src =
+              "/captcha?key=" + new Date();
+            document.getElementById("captcha-input").style.display = "inline";
+          }
+        })
+      );
+    }
   </script>
 
   <!-- 加载完成后自动填入账号密码 -->
-  <body onload="set_account_password()">
+  <body onload="after_onload()">
     <div id="global" style="text-align: center;">
-      <font size="6" style="color: #666666;">易班脚本</font>
+      <font size="6" style="color: #666666;">YB_Django </font>
+      <a href="https://github.com/FH0/YB_Django"
+        ><img src="{% static 'github.ico' %}" style="width: 25px;"
+      /></a>
+
       <hr />
 
       <br />
       <br />
 
+      <div style="text-align: left; height: 30px; margin-bottom: 0px;">
+        <p
+          id="login-info"
+          style="
+            position: absolute;
+            font-size: 12px;
+            margin-bottom: 2px;
+            width: 180px;
+            margin-left: -94px;
+            left: 50%;
+            color: #e65c00;
+          "
+        ></p>
+      </div>
       <input
         type="text"
         id="account"
@@ -128,40 +263,39 @@
         id="password"
         placeholder="请输入密码"
         style="width: 180px; height: 25px;"
-        οnkeyup="if(event.keyCode == 13) { execute_script() }"
+        οnkeyup="if(event.keyCode == 13) { login() }"
       />
       <p></p>
-      <p id="info"></p>
       <img id="captcha" style="display: none;" onclick="refresh_captcha()" />
       <p></p>
       <input
         type="text"
-        id="captcha_input"
+        id="captcha-input"
         placeholder="请输入验证码"
         style="display: none; width: 180px; height: 25px;"
       />
       <p></p>
-      <input
-        type="button"
-        style="width: 180px; height: 30px;"
-        value="执行脚本"
-        onclick="execute_script()"
-      />
+      <input type="button" id="login-btn" value="登 录" onclick="login()" />
+      <p></p>
 
       <br />
       <br />
-      <br />
 
-      <!-- 点击执行按钮之后才显示 -->
-      <div id="yb_info" style="display: none;">
-        执行脚本前的
+      <div id="after-login" style="display: none;">
+        <input
+          type="button"
+          id="get-wangxin-jingyan-btn"
+          value="查询网薪和经验"
+          onclick="get_wangxin_jingyan()"
+        />
+        <input
+          type="button"
+          id="execute-script-btn"
+          value="执行脚本"
+          onclick="rush_yb()"
+        />
         <p></p>
-        网薪
-        <span id="wangxin"></span>
-        <p></p>
-        经验
-        <span id="jingyan"></span>
-        <p></p>
+        <p id="execute-info"></p>
       </div>
     </div>
   </body>

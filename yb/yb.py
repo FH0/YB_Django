@@ -27,83 +27,85 @@ puid = ''  # 学校的id
 group_id = ''  # 组的id
 
 
-# 易班接口
-@csrf_exempt
-def login(request):
+# 登录状态接口
+def is_login(request):
     cookies = get_cookies(request)
 
     r = requests.post('https://www.yiban.cn/ajax/my/getLogin',
                       cookies=cookies).json()
-    if (not request.POST['captcha']) and r['data']['isLogin']:
-        yb_info = rush_yb(cookies, r)
-        yb_info['message'] = '脚本执行完毕'
-        yb_info['code'] = 200
-        response = JsonResponse(yb_info, safe=False)
-    else:
-        # 获取 cookies data_keys data_keys_time encrypt_password 用于 doLoginAjax
-        login_response = requests.get(
-            'https://www.yiban.cn/login', cookies=cookies)
-        cookies.update(login_response.cookies.get_dict())
-        if login_response.cookies:
-            cookies = login_response.cookies.get_dict()
-        data_keys = re.findall(r'data-keys=\'(.*?)\'',
-                               login_response.text, re.S)
-        if len(data_keys) < 1:
-            return HttpResponse("")
-        data_keys = data_keys[0]
-        data_keys_time = re.findall(
-            r'data-keys-time=\'(.*?)\'', login_response.text, re.S)[0]
-        encrypt_password = get_crypt_password(
-            data_keys, request.POST['password'])
+    return JsonResponse({'isLogin': r['data']['isLogin']}, safe=False)
 
-        # post 易班登录接口
-        r = requests.post('https://www.yiban.cn/login/doLoginAjax', {
-            'account': request.POST['account'], 'password': encrypt_password, 'captcha': request.POST['captcha'], 'keysTime': data_keys_time}, cookies=cookies, allow_redirects=False)
-        cookies.update(r.cookies.get_dict())
-        if r.json()['code'] == 200:
-            yb_info = rush_yb(cookies)
-            yb_info['message'] = '脚本执行完毕'
-            yb_info['code'] = 200
-            response = JsonResponse(yb_info, safe=False)
-        elif r.json()['code'] == '711':
-            response = JsonResponse(
-                {'message': '请输入验证码', 'code': r.json()['code']}, safe=False)
-        else:
-            response = JsonResponse(
-                {'message': r.json()['message'], 'code': r.json()['code']}, safe=False)
-        # 保存一些信息到cookies
-        lease = 30 * 24 * 60 * 60  # 30 days in seconds
-        end = time.gmtime(time.time() + lease)
-        expires = time.strftime("%a, %d-%b-%Y %T GMT", end)
-        response.set_cookie('account', request.POST['account'], expires=expires)
-        response.set_cookie('password', request.POST['password'], expires=expires)
-        for i in cookies:
-            response.set_cookie(i, cookies[i], expires=expires)
+
+# 验证码接口
+def captcha(request):
+    if 'key' in request.GET:
+        cookies = get_cookies(request)
+        r = requests.get("https://www.yiban.cn/captcha/index?" +
+                         str(int(time.time())), cookies=cookies)
+        return HttpResponse(r.content, content_type="image/jpeg")
+
+
+# 网薪和经验接口
+def wangxin_jingyan(request):
+    cookies = get_cookies(request)
+    my_id = requests.post('https://www.yiban.cn/ajax/my/getLogin',
+                          cookies=cookies).json()['data']['user']['id']
+    res = requests.get(
+        'https://www.yiban.cn/user/index/index/user_id/' + my_id, cookies=cookies).text
+    wangxin = re.findall(r'user-money">(.*?)</span', res, re.S)[0]
+    jingyan = re.findall(r'经验：</label>(.*?)</p>', res, re.S)[0]
+    return HttpResponse("网薪:"+wangxin+"&nbsp&nbsp经验:"+jingyan)
+
+
+# 登录接口
+@csrf_exempt
+def login(request):
+    cookies = get_cookies(request)
+
+    # 传入的 json 是二进制格式，需要重新加载
+    r_json = json.loads(request.body)
+
+    # 获取 cookies data_keys data_keys_time encrypt_password 用于 doLoginAjax
+    login_response = requests.get(
+        'https://www.yiban.cn/login', cookies=cookies)
+    cookies.update(login_response.cookies.get_dict())
+    data_keys = re.findall(r'data-keys=\'(.*?)\'',
+                           login_response.text, re.S)[0]
+    data_keys_time = re.findall(
+        r'data-keys-time=\'(.*?)\'', login_response.text, re.S)[0]
+    encrypt_password = get_crypt_password(
+        data_keys, r_json['password'])
+
+    # post 易班登录接口
+    r = requests.post('https://www.yiban.cn/login/doLoginAjax', {
+        'account': r_json['account'], 'password': encrypt_password, 'captcha': r_json['captcha'], 'keysTime': data_keys_time}, cookies=cookies, allow_redirects=False)
+    cookies.update(r.cookies.get_dict())
+    response = JsonResponse(
+        {'message': r.json()['message'], 'code': r.json()['code']}, safe=False)
+
+    # 保存一些信息到cookies
+    lease = 30 * 24 * 60 * 60  # 30 days in seconds
+    end = time.gmtime(time.time() + lease)
+    expires = time.strftime("%a, %d-%b-%Y %T GMT", end)
+    for i in cookies:
+        response.set_cookie(i, cookies[i], expires=expires)
 
     return response
 
 
-# login 的下一步，刷取的上一步
-def rush_yb(cookies, josn={}):
+# 刷取接口
+def rush_yb(request):
+    cookies = get_cookies(request)
+
     # 填充全局变量
-    if not josn:
-        josn = requests.post('https://www.yiban.cn/ajax/my/getLogin',
-                             cookies=cookies).json()
+    josn = requests.post('https://www.yiban.cn/ajax/my/getLogin',
+                         cookies=cookies).json()
     global data_token, my_id, puid, group_id
     data_token = josn['data']['user']['token']
     my_id = josn['data']['user']['id']
     r = requests.get('https://www.yiban.cn/my/group', cookies=cookies).text
     group_id = re.findall(r'data-groupid="([0-9]+)', r, re.S)[0]
     puid = re.findall(r'data-puid="([0-9]+)', r, re.S)[0]
-
-    # 之前的经验和网薪
-    result = {}
-    res = requests.get(
-        'https://www.yiban.cn/user/index/index/user_id/' + my_id, cookies=cookies).text
-    wangxin = re.findall(r'user-money">(.*?)</span', res, re.S)[0]
-    jingyan = re.findall(r'经验：</label>(.*?)</p>', res, re.S)[0]
-    result['wangxin'] = wangxin
-    result['jingyan'] = jingyan
 
     # 格式化时间
     global timestring
@@ -115,7 +117,7 @@ def rush_yb(cookies, josn={}):
     loop.run_until_complete(tasks_list(cookies))
     loop.close()
 
-    return result
+    return HttpResponse("执行完毕")
 
 
 # 任务清单
@@ -465,23 +467,16 @@ async def database(session, sslcontext):
 
 # 返回过滤后的 cookies
 def get_cookies(request):
-    if request.method == 'POST' and (not 'new_account' in request.POST or request.POST['new_account'] == '0'):
+    # 传入的 json 是二进制格式，需要重新加载
+    try:
+        r_json = json.loads(request.body)
+    except:
+        r_json = {}
+
+    if request.method == 'POST' and (not 'new_account' in r_json or r_json['new_account'] == '0'):
         return {}
     else:
-        cookies = request.COOKIES
-        if 'account' in cookies and 'password' in cookies:
-            cookies.pop('account')
-            cookies.pop('password')
-        return cookies
-
-
-# 返回验证码的接口
-def captcha(request):
-    if 'key' in request.GET:
-        cookies = get_cookies(request)
-        r = requests.get("https://www.yiban.cn/captcha/index?" +
-                         str(int(time.time())), cookies=cookies)
-        return HttpResponse(r.content, content_type="image/jpeg")
+        return request.COOKIES
 
 
 # 用于报错输出
